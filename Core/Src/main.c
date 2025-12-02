@@ -19,13 +19,13 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "string.h"
-#include "stm32f4xx_hal.h"
-#include <stdio.h>
-#include <inttypes.h>
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "lcd.h"
 #include <stdlib.h>
+#include <stdio.h>
+LCD_HandleTypeDef lcd;
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -40,7 +40,7 @@
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
-
+uint32_t last_pulse = 1500;
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
@@ -52,6 +52,8 @@ ETH_DMADescTypeDef  DMATxDscrTab[ETH_TX_DESC_CNT]; /* Ethernet Tx DMA Descriptor
 ADC_HandleTypeDef hadc1;
 
 ETH_HandleTypeDef heth;
+
+I2C_HandleTypeDef hi2c2;
 
 TIM_HandleTypeDef htim3;
 
@@ -71,15 +73,17 @@ static void MX_USART3_UART_Init(void);
 static void MX_USB_OTG_FS_PCD_Init(void);
 static void MX_TIM3_Init(void);
 static void MX_ADC1_Init(void);
+static void MX_I2C2_Init(void);
 /* USER CODE BEGIN PFP */
-uint16_t last_pulse= 1500;
-uint32_t ldr_right = 0;
-uint32_t ldr_left = 0;
+
 
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+
+
+
 void ServoMove(uint16_t pulse){
 	if(pulse <900){
 		pulse = 900;
@@ -95,17 +99,8 @@ void ServoMove(uint16_t pulse){
 	last_pulse = pulse;
 }
 
-int _write(int file, char *ptr, int len)
-{
-    for (int i = 0; i < len; i++)
-        ITM_SendChar(*ptr++);
-return len;
-}
+
 /* USER CODE END 0 */
-
-
-
-
 
 /**
   * @brief  The application entry point.
@@ -141,30 +136,30 @@ int main(void)
   MX_USB_OTG_FS_PCD_Init();
   MX_TIM3_Init();
   MX_ADC1_Init();
+  MX_I2C2_Init();
   /* USER CODE BEGIN 2 */
 
 
-  HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
-  HAL_ADC_Start(&hadc1);
+  //for the display used is versuch 3 auf2
+   lcd.i2c      = &hi2c2;
+   lcd.i2c_addr = (0x27 << 1);
+   lcd.backlight_enable = true;
+   LCD_Begin(&lcd);
+   LCD_Clear(&lcd);
+   LCD_SetCursor(&lcd,0,0);
+   //LCD_Print(&lcd, "Hello Jorge"); //testing display prints
 
-  /*for (int i = 1350; i <= 2200; i += 50) {   //  0.8–2.2 ms
+
+  //HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
+  //HAL_ADC_Start(&hadc1);
+
+   //Section for seeing which is the maximum value//
+  /*for (int i = 1350; i <= 2200; i += 50) {
     __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1, i);
     HAL_Delay(200);
   }*/
 
-  HAL_ADC_PollForConversion(&hadc1, 10);
-  ldr_left = HAL_ADC_GetValue(&hadc1);
-  HAL_ADC_PollForConversion(&hadc1, 10);
-  ldr_right = HAL_ADC_GetValue(&hadc1);
-  printf("%ld", ldr_left);
-  HAL_Delay(2000);
-  printf("Hello hola");
-  HAL_Delay(2000);
-  printf("%ld", ldr_right);
-  HAL_Delay(2000);
-
-
-  HAL_ADC_Stop(&hadc1);
+   //function moving servo
   /*
   ServoMove(1000);
   HAL_Delay(2000);
@@ -173,6 +168,7 @@ int main(void)
   ServoMove(1500);
   HAL_Delay(2000);*/
 
+   //Section trying to make the servo work
   /*
   __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1, 1000);
   HAL_Delay(2000);
@@ -186,8 +182,16 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	  //__HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1, 1500); // ~90°
-	    //HAL_Delay(1000);
+	  HAL_ADC_Start(&hadc1);
+	      HAL_ADC_PollForConversion(&hadc1, HAL_MAX_DELAY);
+	      uint32_t value = HAL_ADC_GetValue(&hadc1);
+
+
+	      LCD_SetCursor(&lcd, 0, 0);
+	      LCD_Printf(&lcd, "ADC:%4lu     ", value);
+
+	      HAL_Delay(200);
+
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -342,6 +346,54 @@ static void MX_ETH_Init(void)
 }
 
 /**
+  * @brief I2C2 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_I2C2_Init(void)
+{
+
+  /* USER CODE BEGIN I2C2_Init 0 */
+
+  /* USER CODE END I2C2_Init 0 */
+
+  /* USER CODE BEGIN I2C2_Init 1 */
+
+  /* USER CODE END I2C2_Init 1 */
+  hi2c2.Instance = I2C2;
+  hi2c2.Init.ClockSpeed = 100000;
+  hi2c2.Init.DutyCycle = I2C_DUTYCYCLE_2;
+  hi2c2.Init.OwnAddress1 = 0;
+  hi2c2.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
+  hi2c2.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
+  hi2c2.Init.OwnAddress2 = 0;
+  hi2c2.Init.GeneralCallMode = I2C_GENERALCALL_DISABLE;
+  hi2c2.Init.NoStretchMode = I2C_NOSTRETCH_DISABLE;
+  if (HAL_I2C_Init(&hi2c2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Configure Analogue filter
+  */
+  if (HAL_I2CEx_ConfigAnalogFilter(&hi2c2, I2C_ANALOGFILTER_ENABLE) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Configure Digital filter
+  */
+  if (HAL_I2CEx_ConfigDigitalFilter(&hi2c2, 0) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN I2C2_Init 2 */
+
+  /* USER CODE END I2C2_Init 2 */
+
+}
+
+/**
   * @brief TIM3 Initialization Function
   * @param None
   * @retval None
@@ -482,6 +534,7 @@ static void MX_GPIO_Init(void)
 
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOC_CLK_ENABLE();
+  __HAL_RCC_GPIOF_CLK_ENABLE();
   __HAL_RCC_GPIOH_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
