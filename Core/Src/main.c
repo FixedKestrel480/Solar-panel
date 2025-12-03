@@ -26,6 +26,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 LCD_HandleTypeDef lcd;
+
+
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -50,6 +52,7 @@ ETH_DMADescTypeDef  DMARxDscrTab[ETH_RX_DESC_CNT]; /* Ethernet Rx DMA Descriptor
 ETH_DMADescTypeDef  DMATxDscrTab[ETH_TX_DESC_CNT]; /* Ethernet Tx DMA Descriptors */
 
 ADC_HandleTypeDef hadc1;
+ADC_HandleTypeDef hadc2;
 
 ETH_HandleTypeDef heth;
 
@@ -74,6 +77,7 @@ static void MX_USB_OTG_FS_PCD_Init(void);
 static void MX_TIM3_Init(void);
 static void MX_ADC1_Init(void);
 static void MX_I2C2_Init(void);
+static void MX_ADC2_Init(void);
 /* USER CODE BEGIN PFP */
 
 
@@ -82,6 +86,15 @@ static void MX_I2C2_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
+uint32_t avg(uint8_t n){
+    uint32_t prom=0;
+    for(uint8_t i=0;i<n;i++){
+        HAL_ADC_Start(&hadc1);
+        HAL_ADC_PollForConversion(&hadc1, HAL_MAX_DELAY);
+        prom += HAL_ADC_GetValue(&hadc1);
+    }
+    return prom/n;
+}
 
 
 void ServoMove(uint16_t pulse){
@@ -137,6 +150,7 @@ int main(void)
   MX_TIM3_Init();
   MX_ADC1_Init();
   MX_I2C2_Init();
+  MX_ADC2_Init();
   /* USER CODE BEGIN 2 */
 
 
@@ -150,7 +164,8 @@ int main(void)
    //LCD_Print(&lcd, "Hello Jorge"); //testing display prints
 
 
-  //HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
+
+  HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
   //HAL_ADC_Start(&hadc1);
 
    //Section for seeing which is the maximum value//
@@ -160,17 +175,17 @@ int main(void)
   }*/
 
    //function moving servo
-  /*
+
   ServoMove(1000);
   HAL_Delay(2000);
   ServoMove(2000);
   HAL_Delay(2000);
   ServoMove(1500);
-  HAL_Delay(2000);*/
+  HAL_Delay(2000);
 
    //Section trying to make the servo work
-  /*
-  __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1, 1000);
+
+  /*__HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1, 1000);
   HAL_Delay(2000);
   __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1, 2000);
   HAL_Delay(2000);
@@ -182,15 +197,28 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+	  //LDR 1
 	  HAL_ADC_Start(&hadc1);
 	      HAL_ADC_PollForConversion(&hadc1, HAL_MAX_DELAY);
 	      uint32_t value = HAL_ADC_GetValue(&hadc1);
-
-
 	      LCD_SetCursor(&lcd, 0, 0);
 	      LCD_Printf(&lcd, "ADC:%4lu     ", value);
 
+	     // uint32_t value2 = avg(16);
+	      //LCD_SetCursor(&lcd, 1, 0);
+	      //LCD_Printf(&lcd, "ADC:%4lu     ", value2);
+
+
 	      HAL_Delay(200);
+
+	      //LDR 2
+	      HAL_ADC_Start(&hadc2);
+		  HAL_ADC_PollForConversion(&hadc2, HAL_MAX_DELAY);
+		  uint32_t value2 = HAL_ADC_GetValue(&hadc2);
+		  LCD_SetCursor(&lcd, 1, 0);
+		  LCD_Printf(&lcd, "ADC:%4lu     ", value2);
+
+		  HAL_Delay(100);
 
     /* USER CODE END WHILE */
 
@@ -267,13 +295,13 @@ static void MX_ADC1_Init(void)
   hadc1.Instance = ADC1;
   hadc1.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV4;
   hadc1.Init.Resolution = ADC_RESOLUTION_12B;
-  hadc1.Init.ScanConvMode = DISABLE;
+  hadc1.Init.ScanConvMode = ENABLE;
   hadc1.Init.ContinuousConvMode = DISABLE;
   hadc1.Init.DiscontinuousConvMode = DISABLE;
   hadc1.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
   hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
   hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
-  hadc1.Init.NbrOfConversion = 1;
+  hadc1.Init.NbrOfConversion = 2;
   hadc1.Init.DMAContinuousRequests = DISABLE;
   hadc1.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
   if (HAL_ADC_Init(&hadc1) != HAL_OK)
@@ -290,9 +318,69 @@ static void MX_ADC1_Init(void)
   {
     Error_Handler();
   }
+
+  /** Configure for the selected ADC regular channel its corresponding rank in the sequencer and its sample time.
+  */
+  sConfig.Rank = 2;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
   /* USER CODE BEGIN ADC1_Init 2 */
 
   /* USER CODE END ADC1_Init 2 */
+
+}
+
+/**
+  * @brief ADC2 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_ADC2_Init(void)
+{
+
+  /* USER CODE BEGIN ADC2_Init 0 */
+
+  /* USER CODE END ADC2_Init 0 */
+
+  ADC_ChannelConfTypeDef sConfig = {0};
+
+  /* USER CODE BEGIN ADC2_Init 1 */
+
+  /* USER CODE END ADC2_Init 1 */
+
+  /** Configure the global features of the ADC (Clock, Resolution, Data Alignment and number of conversion)
+  */
+  hadc2.Instance = ADC2;
+  hadc2.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV4;
+  hadc2.Init.Resolution = ADC_RESOLUTION_12B;
+  hadc2.Init.ScanConvMode = ENABLE;
+  hadc2.Init.ContinuousConvMode = DISABLE;
+  hadc2.Init.DiscontinuousConvMode = DISABLE;
+  hadc2.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
+  hadc2.Init.ExternalTrigConv = ADC_SOFTWARE_START;
+  hadc2.Init.DataAlign = ADC_DATAALIGN_RIGHT;
+  hadc2.Init.NbrOfConversion = 1;
+  hadc2.Init.DMAContinuousRequests = DISABLE;
+  hadc2.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
+  if (HAL_ADC_Init(&hadc2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Configure for the selected ADC regular channel its corresponding rank in the sequencer and its sample time.
+  */
+  sConfig.Channel = ADC_CHANNEL_5;
+  sConfig.Rank = 1;
+  sConfig.SamplingTime = ADC_SAMPLETIME_3CYCLES;
+  if (HAL_ADC_ConfigChannel(&hadc2, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN ADC2_Init 2 */
+
+  /* USER CODE END ADC2_Init 2 */
 
 }
 
